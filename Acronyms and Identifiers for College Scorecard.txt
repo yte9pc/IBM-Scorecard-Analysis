@@ -1,0 +1,65 @@
+Departments and Offices
+========================
+U.S. Department of Education
+|
++- Office of Postsecondary Education  (OPE)
+|
++- Federal Student Aid office (FSA)
+|
++- Institute of Education Sciences
+   |
+   +- National Center for Education Statistics (NCES)
+
+
+Law Codes
+=========
+
+Title 4 = law dealing with financial aid:
+
+  "Title IV of the Higher Education Act of 1965 (HEA) 
+   covers the administration of the United States 
+   federal student financial aid programs." - Wikipedia 
+
+Data Systems
+============
+
+IPEDS
+    Integrated Postsecondary Education Data System
+    Administered by: National Center for Education Statistics (NCES)
+    LinK: https://nces.ed.gov/ipeds/
+
+National Student Loan Data System (NSLDS)  
+    Administered by: Department of Education
+    Link: https://nslds.ed.gov/
+    ==> reported to by schools & used to distribute aid
+
+
+Identifiers
+===========
+
+OPEID = OPE's ID for an institution
+    "This is a 6-digit number and is also provided as an 8-digit number with a 2-digit 
+    suffix to identify branches, additional locations, and other entities that are part of 
+    the eligible institution." - ScoreCard Data Documentation
+    
+UNITID = IPEDS IDs
+    Identifiers in the IPEDS (= a data system).
+
+
+Crosswalk = Effort by college scorecard to correlate OPE and IPEDS identifiers.
+
+    "The Scorecard universe of institutions excludes non-Title IV institutions 
+    without a valid OPEID, those that do not report data to IPEDS on 
+    degree/certificate completions, and those that do not report enrollment 
+    data to IPEDS.3 For more information about IPEDS, please see 
+    http://nces.ed.gov/ipeds."
+
+
+    "There is not necessarily a one-to-one relationship between UNITID and the 
+    8-digit OPEID. A UNITID may correspond to the aggregation of several OPEIDs 
+    (i.e., several locations of an institution combining their data for IPEDS reporting),
+    or in rarer cases may correspond to part of an OPEID (e.g., a single location may
+    elect to report their traditional campus-based and online operations under separate
+    UNITIDs despite both being part of the same OPEID)."
+
+
