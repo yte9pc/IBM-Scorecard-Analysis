@@ -1,3 +1,9 @@
-data/CollegeScorecard_Raw_Data
+# special folder
 git_ignored
+
+# ignore the raw data
+data/CollegeScorecard_Raw_Data
+
+# ignore swap, system files
+~*
 .DS_Store
