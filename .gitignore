@@ -7,3 +7,4 @@ data/CollegeScorecard_Raw_Data
 # ignore swap, system files
 ~*
 .DS_Store
+.Rhistory
