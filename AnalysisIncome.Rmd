@@ -1,0 +1,329 @@
+---
+title: "Employee Attrition"
+output: html_notebook
+urlcolor: blue
+author: Jon Gomez (jag2j), Michael Langmayr, Nathan England, and Yihnew Eshetu
+---
+
+
+# About the data
+
+We will analyze the "IBM HR Analytics Employee Attrition & Performance" dataset ((link)[https://www.kaggle.com/pavansubhasht/ibm-hr-analytics-attrition-dataset]).  The dataset documentation says that it was synthesized by data scientists at IBM.  Observations describe hypothetical employees.  Rows measure the employee retention status, metrics about the workplace, and details about the employee.
+
+# Preparation
+
+## Libraries
+
+```{r}
+suppressPackageStartupMessages(library(tidyverse))
+suppressPackageStartupMessages(library(leaps))     # model selection tools
+suppressPackageStartupMessages(library(faraway))   # VIF function
+library(MASS)
+source('./lib/fmrhs.R') # requires tidyverse
+source('./lib/Pretty correlation.R')
+```
+
+## Loading the data
+We load the data using a custom column mapping.  A few considerations apply:
+
+* Several columns are are originally numeric levels.  We recode these from the data description.
+* A few columns are irrelevant or constant across the data.  We drop these.
+
+```{r}
+# ordered factor
+ordered_factor = col_factor(levels = 1:5, ordered = F)
+
+# column mappings
+types = cols(
+  # continuous variables
+  Age = col_double(),              DailyRate = col_double(),  
+  DistanceFromHome = col_double(), HourlyRate = col_double(),       
+  #JobLevel = col_double(),
+  JobLevel = col_factor(),
+  # ordered factors we later recode
+  #   e.g., JobSatisfaction ranges from 1 - 4 (= 'Low' to 'Very High')
+  Education                = col_factor(levels = 1:5, ordered = F),
+  EnvironmentSatisfaction  = col_factor(1:4, ordered = F),
+  JobInvolvement           = col_factor(1:4, ordered = F),
+  JobSatisfaction          = col_factor(levels = 1:4, ordered = F),
+  PerformanceRating        = col_factor(levels = 1:4, ordered = F),
+  RelationshipSatisfaction = col_factor(levels = 1:4, ordered = F),
+  WorkLifeBalance          = col_factor(levels = 1:4, ordered = F),
+  
+  # other factors
+  BusinessTravel =  col_factor(levels = c('Non-Travel', 'Travel_Rarely', 'Travel_Frequently'), 
+                               ordered = F),
+  Gender = col_factor(),            JobRole = col_factor(),
+  MaritalStatus = col_factor(),     EducationField = col_factor(),
+  
+  # things we have decided to treat as factors
+  Department = col_factor(),        # we presume we could map to a taxonomy
+  StockOptionLevel = col_factor(),  # unclear scale
+  
+  # true/false
+  Attrition = col_factor(),
+  OverTime = col_factor(),
+  
+  # drop
+  EmployeeCount = col_skip(),  # always 1
+  StandardHours = col_skip(),  # always 80
+  EmployeeNumber = col_skip(), # 1, 2, ...
+  Over18 = col_skip(),         # always true
+  
+  # continous values
+  MonthlyIncome = col_double(),       MonthlyRate = col_double(),              
+  NumCompaniesWorked = col_double(),  PercentSalaryHike = col_double(),
+  TotalWorkingYears = col_double(),   TrainingTimesLastYear = col_double(),
+  WorkLifeBalance = col_double(),     YearsAtCompany = col_double(),           
+  YearsInCurrentRole = col_double(),  YearsSinceLastPromotion = col_double(),
+  YearsWithCurrManager = col_double()
+)
+
+# read in using mapping
+ibm = read_csv("data/ibm.csv", col_types = types)
+
+# rename levels
+ibm$Education = recode(ibm$Education, 
+                       '1' = 'Below College', '2' = 'College', '3' = 'Bachelor', '4' = 'Master', '5' = 'Doctor')
+ibm$EnvironmentSatisfaction = recode(ibm$EnvironmentSatisfaction, 
+                       '1' = 'Low', '2' = 'Medium', '3' = 'High', '4' = 'Very High')
+ibm$JobInvolvement = recode(ibm$JobInvolvement, 
+                       '1' = 'Low', '2' = 'Medium', '3' = 'High', '4' = 'Very High')
+ibm$JobSatisfaction = recode(ibm$JobSatisfaction, 
+                       '1' = 'Low', '2' = 'Medium', '3' = 'High', '4' = 'Very High')
+ibm$PerformanceRating = recode(ibm$PerformanceRating, 
+                       '1' = 'Low', '2' = 'Good', '3' = 'Excellent', '4' = 'Outstanding')
+ibm$RelationshipSatisfaction = recode(ibm$RelationshipSatisfaction, 
+                       '1' = 'Low', '2' = 'Medium', '3' = 'High', '4' = 'Very High')
+ibm$WorkLifeBalance = recode(ibm$WorkLifeBalance, 
+                       '1' = 'Bad', '2' = 'Good', '3' = 'Better', '4' = 'Best')
+
+# set contrasts for yes/no levels
+ibm$Attrition = relevel(ibm$Attrition, ref = "No")
+ibm$OverTime = relevel(ibm$OverTime, ref = "No")
+
+```
+
+## Additional data manipulations
+
+We produce a defactored version of the data for which we have replaced factors with numeric vectors.
+```{r}
+ibm.defactored = mutate_if(ibm, is.factor, ~ as.numeric(.x))
+```
+
+## Sample observations
+
+We show some sample data:
+```{r}
+# a sample observation
+t(head(ibm, n = 1))
+```
+
+```{r}
+head(ibm, n = 10)[,c(1:5)]
+```
+
+# General Observations
+
+There are 1,470 rows and 31 columns.  
+
+```{r}
+
+```
+
+
+
+
+```{r}
+par(mfrow=c(2,2))
+plot(ibm$EducationField)
+plot(ibm$JobInvolvement)
+plot(ibm$Education)
+with(ibm, hist(Age))
+```
+
+```{r}
+
+```
+
+```{r}
+summary(ibm)
+```
+
+## Correlation
+
+We look at columns for which the correlation is greater than 70 in the defactored data:
+```{r}
+p = round(cor(ibm.defactored) * 100)
+for(i in 1:nrow(p)) {
+  for(j in i:ncol(p)) {
+    if(i == j) next
+    val = p[i,j]
+    if(abs(val) > 70) {
+      r = row.names(p)[i]
+      c = colnames(p)[j]
+      str = paste("cor(", r, ", ", c, ") = ", val, "\n")
+      cat(str)
+    }
+  }
+}
+```
+
+
+We also examine the VIFs of the defactored data for general interest.  We perform a formal test when we investigate specific models.
+```{r}
+model.defactored = lm(MonthlyIncome ~ ., data = ibm.defactored)
+model.defactored.vifs = faraway::vif(model.defactored)
+
+# Five highest VIFs with this "defactored" model on Monthly income
+# 
+model.defactored.vifs[order(model.defactored.vifs, decreasing = T)][1:5]
+```
+
+
+
+# Question 1
+
+Our first question is
+
+> What factors correlate with attrition?
+
+## Work
+
+### Selecting an initial model
+
+We choose to investigate this using the leaps framework to evaluate possible variables to include.  Given the fairly small data set, we perform an exhaustive search using `regsubsets` from the leaps package.
+
+```{r}
+# this took about six minutes on one computer tested
+system.time({
+  allreg = regsubsets(MonthlyIncome ~ ., ibm, nbest = 1, really.big = T)
+})
+```
+
+We now print out the top results for several criteria.
+```{r}
+pp_allreg(allreg)
+```
+
+### Initial model evaluation
+
+Since the model with the extreme value for every criterion is the same in the exhautive search, we fit the specified model:
+```{r}
+model.allreg = lm(MonthlyIncome ~  1 + Education + JobLevel + JobRole + StockOptionLevel + TotalWorkingYears, data = ibm)
+```
+
+***CORRECT ME.***
+
+The equation would be 
+$$\begin{array}{rcl}
+\text{Monthly_Income} &=& \beta_0 + \beta_1 \times \text{BusinessTravel} + \beta_2 \times \text{EnvironmentSatisfaction} 
+                    \\ && + \beta_3 \times \text{JobInvolvement} + \beta_4 \times \text{JobRole} + \beta_5 \times \text{JobSatisfaction}
+                    \\ && + \beta_6 \times \text{OverTime} + \beta_7 \times \text{StockOptionLevel} + \beta_8 \times \text{TotalWorkingYears}
+\end{array}$$
+
+#### Basic features
+
+```{r}
+summary(model.allreg)
+```
+
+```{r}
+model.simple = lm(MonthlyIncome ~ JobLevel, data = ibm)
+summary(model.simple)
+```
+
+
+#### Multicollinearity
+
+We first check for multicollinearity:
+
+```{r}
+faraway::vif(model.allreg)
+```
+
+#### Linear assumptions
+```{r}
+plot(model.allreg$fitted.values, model.allreg$residuals, main="plot of residuals against fitted value")
+acf(model.allreg$residuals, main="ACF of residuals")
+abline(h=0, col="red")
+qqnorm(model.allreg$residuals) 
+qqline(model.allreg$residuals, col="red")
+boxcox(model.allreg)
+```
+```{r}
+boxcox(model.allreg, lambda = seq(0.5, 1, by= 0.1))
+```
+```{r}
+ibm_transform = ibm
+ibm_transform$MonthlyIncome = ibm_transform$MonthlyIncome^0.6
+model.transform = lm(MonthlyIncome ~  1 + Education + JobLevel + JobRole + StockOptionLevel + TotalWorkingYears, data = ibm_transform)
+```
+```{r}
+{plot(model.transform$fitted.values,model.transform$residuals, main="plot of residuals against fitted value")
+abline(h=0, col="red")}
+acf(model.transform$residuals, main="ACF of residuals")
+qqnorm(model.transform$residuals) 
+qqline(model.transform$residuals, col="red")
+boxcox(model.transform)
+```
+
+
+$$ E(\varepsilon) = 0, \quad \sigma^2 \text{ constant}$$
+```{r}
+plot(model.simple$fitted.values, model.simple$residuals, main="plot of residuals against fitted value")
+acf(model.simple$residuals, main="ACF of residuals")
+abline(h=0, col="red")
+qqnorm(model.simple$residuals) 
+qqline(model.simple$residuals, col="red")
+boxcox(model.simple, lambda = seq(0.3, 0.6, 0.1))
+```
+```{r}
+ibm_simple_transform = ibm
+ibm_simple_transform$MonthlyIncome = ibm_simple_transform$MonthlyIncome^0.5
+model.simpletransform = lm(MonthlyIncome ~  1  + JobLevel, data = ibm_simple_transform)
+```
+```{r}
+plot(model.simpletransform$fitted.values, model.simpletransform$residuals, main="plot of residuals against fitted value")
+acf(model.simpletransform$residuals, main="ACF of residuals")
+abline(h=0, col="red")
+qqnorm(model.simpletransform$residuals) 
+qqline(model.simpletransform$residuals, col="red")
+boxcox(model.simpletransform, lambda = seq(0.3, 1.2, 0.1))
+```
+```{r}
+model.factor = lm(MonthlyIncome ~  1 + JobLevel + JobRole, data = ibm)
+```
+```{r}
+plot(model.factor$fitted.values, model.simpletransform$residuals, main="plot of residuals against fitted value")
+acf(model.factor$residuals, main="ACF of residuals")
+abline(h=0, col="red")
+qqnorm(model.factor$residuals) 
+qqline(model.factor$residuals, col="red")
+boxcox(model.factor, lambda = seq(0.3, 1.2, 0.1))
+```
+```{r}
+ibm_factor_transform = ibm
+ibm_factor_transform$MonthlyIncome = ibm_factor_transform$MonthlyIncome^0.7
+model.factortransform = lm(MonthlyIncome ~  1 + JobLevel + JobRole, data = ibm_factor_transform)
+plot(model.factortransform$fitted.values, model.factortransform$residuals, main="plot of residuals against fitted value")
+acf(model.factortransform$residuals, main="ACF of residuals")
+abline(h=0, col="red")
+qqnorm(model.factortransform$residuals) 
+qqline(model.factortransform$residuals, col="red")
+boxcox(model.factortransform, lambda = seq(0.3, 1.2, 0.1))
+```
+
+#### Model Diagnostics
+
+We now check for predictive performance.
+
+
+
+
+```{r}
+cor(ibm.defactored)
+
+```
+
+
