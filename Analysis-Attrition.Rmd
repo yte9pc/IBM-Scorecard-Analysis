@@ -30,9 +30,6 @@ We load the data using a custom column mapping.  A few considerations apply:
 * A few columns are irrelevant or constant across the data.  We drop these.
 
 ```{r}
-# ordered factor
-ordered_factor = col_factor(levels = 1:5, ordered = T)
-
 # column mappings
 types = cols(
   # continuous variables
@@ -42,17 +39,17 @@ types = cols(
   
   # ordered factors we later recode
   #   e.g., JobSatisfaction ranges from 1 - 4 (= 'Low' to 'Very High')
-  Education                = col_factor(levels = 1:5, ordered = T),
-  EnvironmentSatisfaction  = col_factor(1:4, ordered = T),
-  JobInvolvement           = col_factor(1:4, ordered = T),
-  JobSatisfaction          = col_factor(levels = 1:4, ordered = T),
-  PerformanceRating        = col_factor(levels = 1:4, ordered = T),
-  RelationshipSatisfaction = col_factor(levels = 1:4, ordered = T),
-  WorkLifeBalance          = col_factor(levels = 1:4, ordered = T),
+  Education                = col_factor(levels = 1:5, ordered = F),
+  EnvironmentSatisfaction  = col_factor(1:4, ordered = F),
+  JobInvolvement           = col_factor(1:4, ordered = F),
+  JobSatisfaction          = col_factor(levels = 1:4, ordered = F),
+  PerformanceRating        = col_factor(levels = 1:4, ordered = F),
+  RelationshipSatisfaction = col_factor(levels = 1:4, ordered = F),
+  WorkLifeBalance          = col_factor(levels = 1:4, ordered = F),
   
   # other factors
   BusinessTravel =  col_factor(levels = c('Non-Travel', 'Travel_Rarely', 'Travel_Frequently'), 
-                               ordered = T),
+                               ordered = F),
   Gender = col_factor(),            JobRole = col_factor(),
   MaritalStatus = col_factor(),     EducationField = col_factor(),
   
@@ -206,11 +203,39 @@ We now print out the top results for several criteria.
 pp_allreg(allreg)
 ```
 
+
+
+```{r}
+
+##intercept only model
+regnull <- lm(y~1, data=data)
+##model with all predictors
+regfull <- lm(y~., data=data)
+
+##forward selection, backward elimination, and stepwise regression
+step(regnull, scope=list(lower=regnull, upper=regfull), direction="forward")
+step(regfull, scope=list(lower=regnull, upper=regfull), direction="backward")
+step(regnull, scope=list(lower=regnull, upper=regfull), direction="both")
+```
+
 ### Initial model evaluation
 
 Since the model with the extreme value for every criterion is the same in the exhautive search, we fit the specified model:
 ```{r}
-model.allreg = lm(MonthlyIncome ~  1 + BusinessTravel + EnvironmentSatisfaction + JobInvolvement + JobRole + JobSatisfaction + OverTime + StockOptionLevel  + TotalWorkingYears, data = ibm)
+model.allreg = glm(Attrition ~ 1 + Age + BusinessTravel + JobRole + JobSatisfaction + NumCompaniesWorked + OverTime + StockOptionLevel, data=ibm, family = "binomial")
+```
+
+```{r}
+groupedIbm = ibm %>% group_by(NumCompaniesWorked) %>% summarise(yeses = sum(Attrition == "Yes"), n = n())
+groupedIbm$yeses/groupedIbm$n
+prop <- groupedIbm$yeses/groupedIbm$n
+# prop
+
+length(unique(ibm$Age))
+
+plot(groupedIbm$NumCompaniesWorked, log(prop/(1-prop)), ylim=c(-5,5), xlab= "Age", ylab="sample log odds")
+
+# try glm.best
 ```
 
 ***CORRECT ME.***
