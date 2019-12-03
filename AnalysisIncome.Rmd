@@ -18,7 +18,7 @@ We will analyze the "IBM HR Analytics Employee Attrition & Performance" dataset 
 suppressPackageStartupMessages(library(tidyverse))
 suppressPackageStartupMessages(library(leaps))     # model selection tools
 suppressPackageStartupMessages(library(faraway))   # VIF function
-library(MASS)
+suppressPackageStartupMessages(library(MASS))       # Box-Cox
 source('./lib/fmrhs.R') # requires tidyverse
 source('./lib/Pretty correlation.R')
 ```
@@ -246,27 +246,40 @@ faraway::vif(model.allreg)
 ```{r}
 plot(model.allreg, which = 1)
 boxcox(model.allreg, lambda = seq(0.5, 1, by= 0.1))
+```
 
-allreg.transform = ibm
-allreg.transform$MonthlyIncome = allreg.transform$MonthlyIncome^0.7
-model.allreg.transform = lm(MonthlyIncome ~  JobLevel + JobRole, data = allreg.transform)
+
+```{r}
+model.allreg.transform = lm(MonthlyIncome^0.7 ~  JobLevel + JobRole, data = ibm)
+summary(model.allreg.transform)
 
 plot(model.allreg.transform, which = 1)
 qqline(model.allreg.transform$residuals, col="red")
 boxcox(model.allreg.transform)
 ```
+
 ```{r}
+
 plot(model.simple, which = 1)
 boxcox(model.simple, lambda = seq(0.2, .6, by= 0.1))
 
-simple.transform = ibm
-simple.transform$MonthlyIncome = simple.transform$MonthlyIncome^0.5
-model.simple.transform = lm(MonthlyIncome ~  JobLevel, data = simple.transform)
+
+#simple.transform = ibm
+#simple.transform$MonthlyIncome = simple.transform$MonthlyIncome^0.5
+model.simple.transform = lm(sqrt(MonthlyIncome) ~  JobLevel, data = ibm)
+
 
 plot(model.simple.transform, which = 1)
-qqline(model.simple.transform$residuals, col="red")
+{qqnorm(model.simple.transform$residuals, col="red")
+qqline(model.simple.transform$residuals, col="red")}
 boxcox(model.simple.transform)
+
 ```
+```{r}
+summary(model.allreg.transform)
+summary(model.simple.transform)
+```
+
 
 
 $$ E(\varepsilon) = 0, \quad \sigma^2 \text{ constant}$$
@@ -278,7 +291,7 @@ regfull = lm(MonthlyIncome ~ ., data = ibm)
 
 #step(regfull, scope=list(lower=regnull, upper=regfull), direction="backward")
 #step(regfull, scope=list(lower=regnull, upper=regfull), direction="forward")
-step(regfull, scope=list(lower=regnull, upper=regfull), direction="both")
+step(regfull, scope=list(lower=regnull, upper=regfull), direction="both", trace = 0)
 ```
 ```{r}
 model.best = lm(MonthlyIncome ~ Gender + JobInvolvement + JobLevel + JobRole + 
@@ -288,16 +301,26 @@ model.best = lm(MonthlyIncome ~ Gender + JobInvolvement + JobLevel + JobRole +
 plot(model.best, which = 1)
 boxcox(model.best, lambda = seq(0.3, 1.2, 0.1))
 
-best.transform  = ibm
-best.transform$MonthlyIncome = best.transform$MonthlyIncome^0.7
-model.best.transform = lm(MonthlyIncome ~ Gender + JobInvolvement + JobLevel + JobRole + 
+#best.transform  = ibm
+#best.transform$MonthlyIncome = best.transform$MonthlyIncome^0.7
+model.best.transform = lm(MonthlyIncome^0.7 ~ Gender + JobInvolvement + JobLevel + JobRole + 
     NumCompaniesWorked + StockOptionLevel + TotalWorkingYears + 
-    YearsInCurrentRole, data = best.transform )
+    YearsInCurrentRole, data = ibm )
 
-plot(model.best_transform , which = 1)
-boxcox(model.best_transform, lambda = seq(0.3, 1.2, 0.1))
+plot(model.best.transform , which = 1)
+boxcox(model.best.transform, lambda = seq(0.3, 1.2, 0.1))
 ```
 #### Transformation of non factor predictors for all 3 models (allreg, simple, best)
+```{r}
+transformDoubles = function(df, func) {
+  dbls = sapply(df, is.double)
+  copy = df
+  copy[,dbls] = func(df[,dbls])
+  copy
+}
+```
+
+
 ```{r}
 allregMonthlyIncome = ibm$MonthlyIncome^.7
 allreg.transform.predictors = ibm[-c(17)]
@@ -310,11 +333,23 @@ allreg.transform.double = allreg.transform.predictors[,sapply(allreg.transform.p
 allreg.transform.double = log(allreg.transform.double + 0.01)
 allreg.transform.predictors = cbind(allreg.transform.factor, allreg.transform.double)
 allreg.transform.predictors$MonthlyIncome = allregMonthlyIncome
+```
+```{r}
+# check function
+res = transformDoubles(allreg.transform.predictors, function(x) { log(x + 0.01) })
+res$MonthlyIncome = ibm$MonthlyIncome^.7 # retain original
+#dbls = sapply(allreg.transform.predictors, is.double)
+#res[,names(dbls[dbls])] == allreg.transform.predictors[,names(dbls[dbls])]
+#res[,names(allreg.transform.predictors)] == allreg.transform.predictors[,names(allreg.transform.predictors)]
+```
 
+
+```{r}
 model.allreg.transform.predictors = lm(MonthlyIncome ~  JobLevel + JobRole, data = allreg.transform.predictors)
 plot(model.allreg.transform.predictors , which = 1)
 boxcox(model.allreg.transform.predictors, lambda = seq(0.3, 1.2, 0.1))
 ```
+
 ```{r}
 simpleMonthlyIncome = ibm$MonthlyIncome^.5
 simple.transform.predictors = ibm[-c(17)]
@@ -375,7 +410,7 @@ plot(model.best.transform.predictors$fitted.values,student.res,main="Studentized
 plot(model.best.transform.predictors$fitted.values,ext.student.res,main="Externally  Studentized Residuals")
 
 n = length(best.transform.predictors$MonthlyIncome)
-p = 9
+p = length(coef(model.best.transform.predictors))
 
 ##critical value using Bonferroni procedure
 ext.student.res[abs(ext.student.res)>qt(1-0.05/(2*n), n-p-1)]
@@ -387,14 +422,25 @@ lev<-lm.influence(model.best.transform.predictors)$hat
 length(lev[lev>2*p/n])
 
 ```
+
+```{r}
+ibm[which(lev>2*p/n),]
+```
+```{r}
+plot(ibm$PerformanceRating)
+```
+
+
 ```{r}
 DFFITS<-dffits(model.best.transform.predictors)
 DFFITS[abs(DFFITS)>2*sqrt(p/n)]
 ```
 ```{r}
 DFBETAS<-dfbetas(model.best.transform.predictors)
-DFBETAS[abs(DFBETAS)>2/sqrt(n)]
-DFBETAS
+length(DFBETAS[abs(DFBETAS)>2/sqrt(n)])
+#length(DFBETAS)
+nrow(ibm)
+length(model.best.transform.predictors$residuals)
 ```
 ```{r}
 COOKS<-cooks.distance(model.best.transform.predictors)
@@ -406,8 +452,39 @@ COOKS[COOKS>qf(0.5,p,n-p)]
 We now check for predictive performance.
 
 ```{r}
+length(model.best.transform.predictors$coefficients)
+length(ibm[,1])
 
+```
+```{r}
+model.simple.rstudent     = rstudent(model.simple) 
+n = nrow(ibm)
+p = length(coef(model.simple))
+plot(model.simple.rstudent,main="Externally Studentized Residuals", ylim=c(-4,4))
+abline(h=qt(1-0.05/(2*n), n-p-1), col="red")
+abline(h=-qt(1-0.05/(2*n), n-p-1), col="red")
+model.simple.rstudent[abs(model.simple.rstudent)>qt(1-0.05/(2*n), n-p-1)]
 
 ```
 
+```{r}
+lev = lm.influence(model.simple)$hat 
+influence = lev[lev>2*p/n]
+{
+  plot(lev, main="Leverages", ylim=c(-0.8,0.8))
+  abline(h=2*p/n, col="red")
+  identify(lev)
+}
+
+ibm[which(lev>2*p/n),]
+```
+
+```{r}
+ibm.nosimplelev = ibm[-which(lev>2*p/n),]
+```
+
+```{r}
+model.simple.nolev = lm(MonthlyIncome ~ JobLevel, data = ibm.nosimplelev)
+plot(model.simple.nolev)
+```
 

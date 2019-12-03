@@ -1,0 +1,28 @@
+Models:
+
+Allreg
+* model.allreg  - recommended by regallsubsets
+  lm(MonthlyIncome ~  1 + JobLevel + JobRole, data = ibm)  
+  
+* model.allreg.transform - transformed using BoxCox recommendation
+  lm(MonthlyIncome^0.7 ~  JobLevel + JobRole, data = ibm)
+
+Simple
+* model.simple - based on correlation matrix
+  lm(MonthlyIncome ~ JobLevel, data = ibm)
+
+* model.simple.transform - transformed using BoxCox recommendation
+  lm(sqrt(MonthlyIncome) ~  JobLevel, data = ibm)
+  
+
+Stepwise
+* model.best - fitted using `both` stepwise selection
+  lm(MonthlyIncome ~ Gender + JobInvolvement + JobLevel + JobRole + 
+     NumCompaniesWorked + StockOptionLevel + TotalWorkingYears + 
+     YearsInCurrentRole, data = ibm)
+     
+* model.best.transform - transformed with BoxCox
+   lm(MonthlyIncome^0.7 ~ Gender + JobInvolvement + JobLevel + JobRole + 
+    NumCompaniesWorked + StockOptionLevel + TotalWorkingYears + 
+    YearsInCurrentRole, data = ibm )
+    
