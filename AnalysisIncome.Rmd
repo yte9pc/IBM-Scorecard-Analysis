@@ -488,3 +488,7 @@ model.simple.nolev = lm(MonthlyIncome ~ JobLevel, data = ibm.nosimplelev)
 plot(model.simple.nolev)
 ```
 
+```{r}
+plot(model.simple)
+```
+
