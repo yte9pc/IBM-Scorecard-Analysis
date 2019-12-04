@@ -507,7 +507,15 @@ allreg.jobLevel1 <- regsubsets(MonthlyIncome ~., data=jobLevel1, nbest=1, really
 ```
 
 ```{r}
+# showing the outcome of exhaustive search for job level 1
 pp_allreg(allreg.jobLevel1)
+```
+
+```{r}
+# fit regression model for best r2 model for job level 1
+model.jobLevel1 = lm(MonthlyIncome ~ 1 + Attrition + JobRole + NumCompaniesWorked + PercentSalaryHike + PerformanceRating + TotalWorkingYears + TrainingTimesLastYear + YearsInCurrentRole + YearsSinceLastPromotion, data=jobLevel1)
+
+summary(model.jobLevel1)
 ```
 
 ```{r}
@@ -516,7 +524,15 @@ allreg.jobLevel2 <- regsubsets(MonthlyIncome ~., data=jobLevel2, nbest=1, really
 ```
 
 ```{r}
+# showing the outcome of exhaustive search for job level 2
 pp_allreg(allreg.jobLevel2)
+```
+
+```{r}
+# fit regression model for best r2 model for job level 2
+model.jobLevel2 = lm(MonthlyIncome ~ 1 + BusinessTravel + DailyRate + Education + EducationField + JobInvolvement + JobRole + TotalWorkingYears, data=jobLevel2)
+
+summary(model.jobLevel2)
 ```
 
 ```{r}
@@ -525,8 +541,17 @@ allreg.jobLevel3 <- regsubsets(MonthlyIncome ~., data=jobLevel3, nbest=1, really
 ```
 
 ```{r}
+# showing the outcome of exhaustive search for job level 3
 pp_allreg(allreg.jobLevel3)
 ```
+
+```{r}
+# fit regression model for best r2 model for job level 3
+model.jobLevel3 = lm(MonthlyIncome ~ 1 + BusinessTravel + Education + JobRole + NumCompaniesWorked + RelationshipSatisfaction + StockOptionLevel + TotalWorkingYears, data=jobLevel3)
+
+summary(model.jobLevel3)
+```
+
 
 ```{r}
 # using exhaustive search for job level 4
@@ -534,6 +559,7 @@ allreg.jobLevel4 <- regsubsets(MonthlyIncome ~., data=jobLevel4, nbest=1, really
 ```
 
 ```{r}
+# showing the outcome of exhaustive search for job level 4
 pp_allreg(allreg.jobLevel4)
 ```
 
@@ -543,5 +569,6 @@ allreg.jobLevel5 <- regsubsets(MonthlyIncome ~., data=jobLevel5, nbest=1, really
 ```
 
 ```{r}
+# showing the outcome of exhaustive search for job level 5
 pp_allreg(allreg.jobLevel5)
 ```
