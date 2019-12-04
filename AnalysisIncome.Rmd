@@ -26,7 +26,7 @@ source('./lib/Pretty correlation.R')
 ## Loading the data
 We load the data using a custom column mapping.  A few considerations apply:
 
-* Several columns are are originally numeric levels.  We recode these from the data description.
+* Several columns are originally numeric levels.  We recode these from the data description.
 * A few columns are irrelevant or constant across the data.  We drop these.
 
 ```{r}
@@ -492,3 +492,56 @@ plot(model.simple.nolev)
 plot(model.simple)
 ```
 
+```{r}
+# Create subsets for each job level
+jobLevel1 = subset(ibm, JobLevel == 1)
+jobLevel2 = subset(ibm, JobLevel == 2)
+jobLevel3 = subset(ibm, JobLevel == 3)
+jobLevel4 = subset(ibm, JobLevel == 4)
+jobLevel5 = subset(ibm, JobLevel == 5)
+```
+
+```{r}
+# using exhaustive search for job level 1
+allreg.jobLevel1 <- regsubsets(MonthlyIncome ~., data=jobLevel1, nbest=1, really.big = T)
+```
+
+```{r}
+pp_allreg(allreg.jobLevel1)
+```
+
+```{r}
+# using exhaustive search for job level 2
+allreg.jobLevel2 <- regsubsets(MonthlyIncome ~., data=jobLevel2, nbest=1, really.big = T)
+```
+
+```{r}
+pp_allreg(allreg.jobLevel2)
+```
+
+```{r}
+# using exhaustive search for job level 3
+allreg.jobLevel3 <- regsubsets(MonthlyIncome ~., data=jobLevel3, nbest=1, really.big = T)
+```
+
+```{r}
+pp_allreg(allreg.jobLevel3)
+```
+
+```{r}
+# using exhaustive search for job level 4
+allreg.jobLevel4 <- regsubsets(MonthlyIncome ~., data=jobLevel4, nbest=1, really.big = T)
+```
+
+```{r}
+pp_allreg(allreg.jobLevel4)
+```
+
+```{r}
+# using exhaustive search for job level 5
+allreg.jobLevel5 <- regsubsets(MonthlyIncome ~., data=jobLevel5, nbest=1, really.big = T)
+```
+
+```{r}
+pp_allreg(allreg.jobLevel5)
+```

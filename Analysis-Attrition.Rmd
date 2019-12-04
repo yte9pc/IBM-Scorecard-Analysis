@@ -223,6 +223,19 @@ step(regnull, scope=list(lower=regnull, upper=regfull), direction="both")
 Since the model with the extreme value for every criterion is the same in the exhautive search, we fit the specified model:
 ```{r}
 model.allreg = glm(Attrition ~ 1 + Age + BusinessTravel + JobRole + JobSatisfaction + NumCompaniesWorked + OverTime + StockOptionLevel, data=ibm, family = "binomial")
+
+library(glmulti)
+glmulti.logistic.out <-
+    glmulti(Attrition ~. , data = ibm,
+            level = 1,               # No interaction considered
+            method = "h",            # Exhaustive approach
+            crit = "aic",            # AIC as criteria
+            confsetsize = 5,         # Keep 5 best models
+            plotty = F, report = F,  # No plot or interim reports
+            fitfunction = "glm",     # glm function
+            family = binomial)       # binomial family for logistic regression
+## Show 5 best models (Use @ instead of $ for an S4 object)
+glmulti.logistic.out@formulas
 ```
 
 ```{r}
