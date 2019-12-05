@@ -1,6 +1,6 @@
 ---
 title: "Employee Attrition"
-output: html_notebook
+output: pdf_document
 urlcolor: blue
 author: Jon Gomez (jag2j), Michael Langmayr, Nathan England, and Yihnew Eshetu
 ---
@@ -14,7 +14,7 @@ We will analyze the "IBM HR Analytics Employee Attrition & Performance" dataset 
 
 ## Libraries
 
-```{r}
+```{r echo=FALSE}
 suppressPackageStartupMessages(library(tidyverse))
 suppressPackageStartupMessages(library(leaps))     # model selection tools
 suppressPackageStartupMessages(library(faraway))   # VIF function
@@ -29,7 +29,7 @@ We load the data using a custom column mapping.  A few considerations apply:
 * Several columns are originally numeric levels.  We recode these from the data description.
 * A few columns are irrelevant or constant across the data.  We drop these.
 
-```{r}
+```{r echo=FALSE}
 # ordered factor
 ordered_factor = col_factor(levels = 1:5, ordered = F)
 
@@ -101,59 +101,43 @@ ibm$WorkLifeBalance = recode(ibm$WorkLifeBalance,
 # set contrasts for yes/no levels
 ibm$Attrition = relevel(ibm$Attrition, ref = "No")
 ibm$OverTime = relevel(ibm$OverTime, ref = "No")
+ibm$JobLevel = relevel(ibm$JobLevel, ref = 1)
 
-```
-
-## Additional data manipulations
-
-We produce a defactored version of the data for which we have replaced factors with numeric vectors.
-```{r}
+# produce a de-factored version (for building intuition)
 ibm.defactored = mutate_if(ibm, is.factor, ~ as.numeric(.x))
 ```
 
-## Sample observations
+## General observations
 
-We show some sample data:
-```{r}
-# a sample observation
-t(head(ibm, n = 1))
-```
+There are 1,470 rows and 31 columns.  The features include both factors and quantitative variables.  We show a sample observation below.
 
-```{r}
-head(ibm, n = 10)[,c(1:5)]
-```
-
-# General Observations
-
-There are 1,470 rows and 31 columns.  
-
-```{r}
-
+```{r echo=FALSE}
+#t(head(ibm, n = 1)) # a sample observation
 ```
 
 
+      Age                      "41"                   MonthlyIncome            "5993"           
+      Attrition                "Yes"                  MonthlyRate              "19479"          
+      BusinessTravel           "Travel_Rarely"        NumCompaniesWorked       "8"              
+      DailyRate                "1102"                 OverTime                 "Yes"            
+      Department               "Sales"                PercentSalaryHike        "11"             
+      DistanceFromHome         "1"                    PerformanceRating        "Excellent"      
+      Education                "College"              RelationshipSatisfaction "Low"            
+      EducationField           "Life Sciences"        StockOptionLevel         "0"              
+      EnvironmentSatisfaction  "Medium"               TotalWorkingYears        "8"              
+      Gender                   "Female"               TrainingTimesLastYear    "0"               
+      HourlyRate               "94"                   WorkLifeBalance          "Bad"            
+      JobInvolvement           "High"                 YearsAtCompany           "6"              
+      JobLevel                 "2"                    YearsInCurrentRole       "4"              
+      JobRole                  "Sales Executive"      YearsSinceLastPromotion  "0"              
+      JobSatisfaction          "Very High"            YearsWithCurrManager     "5"    
+      MaritalStatus            "Single"         
 
-
-```{r}
-par(mfrow=c(2,2))
-plot(ibm$EducationField)
-plot(ibm$JobInvolvement)
-plot(ibm$Education)
-with(ibm, hist(Age))
-```
-
-```{r}
-
-```
-
-```{r}
-summary(ibm)
-```
 
 ## Correlation
 
 We look at columns for which the correlation is greater than 70 in the defactored data:
-```{r}
+```{r echo=FALSE}
 p = round(cor(ibm.defactored) * 100)
 for(i in 1:nrow(p)) {
   for(j in i:ncol(p)) {
@@ -170,327 +154,111 @@ for(i in 1:nrow(p)) {
 ```
 
 
-We also examine the VIFs of the defactored data for general interest.  We perform a formal test when we investigate specific models.
-```{r}
-model.defactored = lm(MonthlyIncome ~ ., data = ibm.defactored)
-model.defactored.vifs = faraway::vif(model.defactored)
+# Predicting monthly income
 
-# Five highest VIFs with this "defactored" model on Monthly income
-# 
-model.defactored.vifs[order(model.defactored.vifs, decreasing = T)][1:5]
-```
+## Selecting initial models
 
+We use the leaps library to evaluate possible variables to include.  Given the fairly small data set, we perform an exhaustive search using `regsubsets`.  This provides the following results:
 
-
-# Question 1
-
-Our first question is
-
-> What factors correlate with attrition?
-
-## Work
-
-### Selecting an initial model
-
-We choose to investigate this using the leaps framework to evaluate possible variables to include.  Given the fairly small data set, we perform an exhaustive search using `regsubsets` from the leaps package.
-
-```{r}
+```{r include = FALSE}
+# load existing computation
+load(file = "allreg.saved.R")
 # this took about six minutes on one computer tested
-system.time({
-  allreg = regsubsets(MonthlyIncome ~ ., ibm, nbest = 1, really.big = T)
-})
+#system.time({
+#  allreg = regsubsets(MonthlyIncome ~ ., ibm, nbest = 1, really.big = T)
+#})
+#save(list=c("allreg"), file = "allreg.saved.R")
 ```
-
-We now print out the top results for several criteria.
-```{r}
+```{r echo=FALSE}
 pp_allreg(allreg)
 ```
 
-### Initial model evaluation
-
-Since the model with the extreme value for every criterion is the same in the exhautive search, we fit the specified model:
-```{r}
+Since the model with the extreme value for every criterion is the same in the exhautive search, we fit the specified model.  We also fit the simplified model with only JobLevel, since it has such a high correlation to monthly income (as seen in the "Preparation" section).
+```{r echo=FALSE}
 model.allreg = lm(MonthlyIncome ~  1 + JobLevel + JobRole, data = ibm)
-```
-
-***CORRECT ME.***
-
-The equation would be 
-$$\begin{array}{rcl}
-\text{Monthly_Income} &=& \beta_0 + \beta_1 \times \text{BusinessTravel} + \beta_2 \times \text{EnvironmentSatisfaction} 
-                    \\ && + \beta_3 \times \text{JobInvolvement} + \beta_4 \times \text{JobRole} + \beta_5 \times \text{JobSatisfaction}
-                    \\ && + \beta_6 \times \text{OverTime} + \beta_7 \times \text{StockOptionLevel} + \beta_8 \times \text{TotalWorkingYears}
-\end{array}$$
-
-#### Basic features
-
-```{r}
-summary(model.allreg)
-```
-
-```{r}
 model.simple = lm(MonthlyIncome ~ JobLevel, data = ibm)
+
+summary(model.allreg)
 summary(model.simple)
 ```
 
+## Adequacy and Box-Cox
+When plotting the residuals, we find that both models have non-constant variance.  Further, they exhibit strong clumping due to the use of factorized levels as predictors:
 
-#### Multicollinearity
-
-We first check for multicollinearity:
-
-```{r}
-faraway::vif(model.allreg)
+```{r echo=FALSE}
+{par(mfrow=c(1,2))
+plot(model.simple, which = 1); title("(simple model)", line=-1, adj=0.95, cex.main=0.8)
+plot(model.allreg, which = 1); title("(allreg model)", line=-1, adj=0.95, cex.main=0.8)}
 ```
 
-#### Linear assumptions
-```{r}
-plot(model.allreg, which = 1)
-boxcox(model.allreg, lambda = seq(0.5, 1, by= 0.1))
+We first try to fix these problems with Box-Cox.  We pick transformations using $\lambda = 0.5$ (sqrt) and $\lambda = 0.7$ for the simple and allreg models respectively.
+
+```{r echo=FALSE}
+{ par(mfrow=c(1,2))
+  boxcox(model.simple, lambda = seq(0.2, .6, by= 0.1)); title("simple model")
+  boxcox(model.allreg, lambda = seq(0.5, 1, by= 0.1)); title("allreg model")  }
 ```
 
+A second round of Box-Cox results in confidence intervals containing 1 for both models.  We also see that the p-value for two indicator variables have high p-values in the allreg model, but the other indicator variables remain viable.
+```{r echo=FALSE}
+# boxcox transform simple model
+model.simple.transform = lm(log(MonthlyIncome) ~  JobLevel, data = ibm)
+s = summary(model.simple.transform)$coefficients
+cat("\nSimple model ===> predictors with p-value > 0.5")
+res = s[which(s[,4] > 0.05),]
+if(nrow(res) == 0) cat("\tNone!")
 
-```{r}
+# box cox transform allreg
 model.allreg.transform = lm(MonthlyIncome^0.7 ~  JobLevel + JobRole, data = ibm)
-summary(model.allreg.transform)
+s = summary(model.allreg.transform)$coefficients
+cat("Allreg model ===> predictors with p-value > 0.5")
+s[which(s[,4] > 0.05),]
+```
+```{r include=FALSE}
+# (use this to print out) the box cox results after transformation
+{ par(mfrow=c(1,2))
+  boxcox(model.simple.transform, lambda = seq(2.2, 6, by= 0.1)); title("simple model")
+  boxcox(model.allreg.transform, lambda = seq(0.8, 1.2, by= 0.1)); title("allreg model")  }
+```
 
-plot(model.allreg.transform, which = 1)
-qqline(model.allreg.transform$residuals, col="red")
-boxcox(model.allreg.transform)
+More problematically, the constant variance assumption still appears not to be met:
+
+```{r echo=FALSE}
+{par(mfrow=c(1,2))
+plot(model.simple.transform, which = 1); title("(simple model)", line=-1, adj=0.95, cex.main=0.8)
+plot(model.allreg.transform, which = 1); title("(allreg model)", line=-1, adj=0.95, cex.main=0.8)}
+```
+
+## Leverage points
+We now turn to leverage points, and we come to an important realization.  When we remove them from the simple model, we drop entire job levels:
+```{r echo=FALSE}
+model = model.simple
+ext.student.res = rstudent(model) 
+n = length(model$residuals)
+p = length(coef(model))
+# Leverage points
+lev = lm.influence(model)$hat
+levpts = lev[lev>2*p/n]
+# cook's distance
+COOKS<-cooks.distance(model)
+cookpts = COOKS[COOKS>qf(0.5,p,n-p)]
+# counts
+c(
+  "# of leverage points" = length(levpts),
+  "# of Cook's distance relevant points" =  length(cookpts)
+)
 ```
 
 ```{r}
-
-plot(model.simple, which = 1)
-boxcox(model.simple, lambda = seq(0.2, .6, by= 0.1))
-
-
-#simple.transform = ibm
-#simple.transform$MonthlyIncome = simple.transform$MonthlyIncome^0.5
-model.simple.transform = lm(sqrt(MonthlyIncome) ~  JobLevel, data = ibm)
-
-
-plot(model.simple.transform, which = 1)
-{qqnorm(model.simple.transform$residuals, col="red")
-qqline(model.simple.transform$residuals, col="red")}
-boxcox(model.simple.transform)
-
-```
-```{r}
-summary(model.allreg.transform)
-summary(model.simple.transform)
+model = model.simple
+{par(mfrow=c(1,2))
+plot(model$residuals ~ ibm$JobLevel, main = "Leverage points included", xlab="JobLevel", ylab="Residuals")
+plot(model$residuals[-which(lev>2*p/n)] ~ ibm$JobLevel[-which(lev>2*p/n)], main = "High leverage points removed", xlab="JobLevel", ylab="Residuals")}
 ```
 
+At this point, we decided that it made sense to consider individual models for each individual job level since they have such different characteristics.  In retrospect, this is another way to interpret the box-and-whisker plots.
 
-
-$$ E(\varepsilon) = 0, \quad \sigma^2 \text{ constant}$$
-
-#### Stepwise
-```{r}
-regnull = lm(MonthlyIncome ~  1, data = ibm)
-regfull = lm(MonthlyIncome ~ ., data = ibm)
-
-#step(regfull, scope=list(lower=regnull, upper=regfull), direction="backward")
-#step(regfull, scope=list(lower=regnull, upper=regfull), direction="forward")
-step(regfull, scope=list(lower=regnull, upper=regfull), direction="both", trace = 0)
-```
-```{r}
-model.best = lm(MonthlyIncome ~ Gender + JobInvolvement + JobLevel + JobRole + 
-    NumCompaniesWorked + StockOptionLevel + TotalWorkingYears + 
-    YearsInCurrentRole, data = ibm)
-
-plot(model.best, which = 1)
-boxcox(model.best, lambda = seq(0.3, 1.2, 0.1))
-
-#best.transform  = ibm
-#best.transform$MonthlyIncome = best.transform$MonthlyIncome^0.7
-model.best.transform = lm(MonthlyIncome^0.7 ~ Gender + JobInvolvement + JobLevel + JobRole + 
-    NumCompaniesWorked + StockOptionLevel + TotalWorkingYears + 
-    YearsInCurrentRole, data = ibm )
-
-plot(model.best.transform , which = 1)
-boxcox(model.best.transform, lambda = seq(0.3, 1.2, 0.1))
-```
-#### Transformation of non factor predictors for all 3 models (allreg, simple, best)
-```{r}
-transformDoubles = function(df, func) {
-  dbls = sapply(df, is.double)
-  copy = df
-  copy[,dbls] = func(df[,dbls])
-  copy
-}
-```
-
-
-```{r}
-allregMonthlyIncome = ibm$MonthlyIncome^.7
-allreg.transform.predictors = ibm[-c(17)]
-
-## We tried 3 types of transformation to all of non factor predictors (ln, )
-allreg.transform.factor = allreg.transform.predictors[,sapply(allreg.transform.predictors, is.factor)]
-allreg.transform.double = allreg.transform.predictors[,sapply(allreg.transform.predictors, is.double)]
-#allreg.transform.double = lapply(allreg.transform.double, function(x) 1/x)
-#allreg.transform.double = exp(allreg.transform.double + 0.01)
-allreg.transform.double = log(allreg.transform.double + 0.01)
-allreg.transform.predictors = cbind(allreg.transform.factor, allreg.transform.double)
-allreg.transform.predictors$MonthlyIncome = allregMonthlyIncome
-```
-```{r}
-# check function
-res = transformDoubles(allreg.transform.predictors, function(x) { log(x + 0.01) })
-res$MonthlyIncome = ibm$MonthlyIncome^.7 # retain original
-#dbls = sapply(allreg.transform.predictors, is.double)
-#res[,names(dbls[dbls])] == allreg.transform.predictors[,names(dbls[dbls])]
-#res[,names(allreg.transform.predictors)] == allreg.transform.predictors[,names(allreg.transform.predictors)]
-```
-
-
-```{r}
-model.allreg.transform.predictors = lm(MonthlyIncome ~  JobLevel + JobRole, data = allreg.transform.predictors)
-plot(model.allreg.transform.predictors , which = 1)
-boxcox(model.allreg.transform.predictors, lambda = seq(0.3, 1.2, 0.1))
-```
-
-```{r}
-simpleMonthlyIncome = ibm$MonthlyIncome^.5
-simple.transform.predictors = ibm[-c(17)]
-
-## We tried 3 types of transformation to all of non factor predictors (ln, )
-simple.transform.factor = simple.transform.predictors[,sapply(simple.transform.predictors, is.factor)]
-simple.transform.double = simple.transform.predictors[,sapply(simple.transform.predictors, is.double)]
-#simple.transform.double = lapply(simple.transform.double, function(x) 1/x)
-#simple.transform.double = exp(simple.transform.double + 0.01)
-simple.transform.double = log(simple.transform.double + 0.01)
-simple.transform.predictors = cbind(simple.transform.factor, simple.transform.double)
-simple.transform.predictors$MonthlyIncome = simpleMonthlyIncome
-
-model.simple.transform.predictors = lm(MonthlyIncome ~  JobLevel, data = simple.transform.predictors)
-plot(model.simple.transform.predictors , which = 1)
-boxcox(model.simple.transform.predictors, lambda = seq(0.3, 1.2, 0.1))
-```
-```{r}
-bestMontlyIncome = ibm$MonthlyIncome^.7
-best.transform.predictors = ibm[-c(17)]
-
-## We tried 3 types of transformation to all of non factor predictors 
-best.transform.factor = best.transform.predictors[,sapply(best.transform.predictors, is.factor)]
-best.transform.double = best.transform.predictors[,sapply(best.transform.predictors, is.double)]
-#best.transform.double = lapply(best.transform.double, function(x) 1/x)
-#best.transform.double = exp(best.transform.double + 0.01)
-best.transform.double = log(best.transform.double + 0.01)
-best.transform.predictors = cbind(best.transform.factor, best.transform.double)
-best.transform.predictors$MonthlyIncome = bestMontlyIncome
-
-model.best.transform.predictors = lm(MonthlyIncome ~ Gender + JobInvolvement + JobLevel + 
-    JobRole + NumCompaniesWorked + StockOptionLevel + TotalWorkingYears + 
-    YearsInCurrentRole, data = best.transform.predictors)
-plot(model.best.transform.predictors , which = 1)
-boxcox(model.best.transform.predictors, lambda = seq(0.3, 1.2, 0.1))
-
-# Transform Y since boxcox does not contain 1
-best.transform.predictors$MonthlyIncome = best.transform.predictors$MonthlyIncome^.8
-model.best.transform.predictors = lm(MonthlyIncome ~ Gender + JobInvolvement + JobLevel + 
-    JobRole + NumCompaniesWorked + StockOptionLevel + TotalWorkingYears + 
-    YearsInCurrentRole, data = best.transform.predictors)
-plot(model.best.transform.predictors , which = 1)
-boxcox(model.best.transform.predictors, lambda = seq(0.3, 1.2, 0.1))
-summary(model.best.transform.predictors)
-```
-#### Outliers Analysis
-```{r}
-##residuals
-res = model.best.transform.predictors$residuals 
-##studentized residuals
-student.res = rstandard(model.best.transform.predictors) 
-##externally studentized residuals
-ext.student.res = rstudent(model.best.transform.predictors) 
-
-par(mfrow = c(1,3))
-plot(model.best.transform.predictors$fitted.values,res,main="Residuals")
-plot(model.best.transform.predictors$fitted.values,student.res,main="Studentized Residuals")
-plot(model.best.transform.predictors$fitted.values,ext.student.res,main="Externally  Studentized Residuals")
-
-n = length(best.transform.predictors$MonthlyIncome)
-p = length(coef(model.best.transform.predictors))
-
-##critical value using Bonferroni procedure
-ext.student.res[abs(ext.student.res)>qt(1-0.05/(2*n), n-p-1)]
-
-```
-```{r}
-# Leverage point
-lev<-lm.influence(model.best.transform.predictors)$hat 
-length(lev[lev>2*p/n])
-
-```
-
-```{r}
-ibm[which(lev>2*p/n),]
-```
-```{r}
-plot(ibm$PerformanceRating)
-```
-
-
-```{r}
-DFFITS<-dffits(model.best.transform.predictors)
-DFFITS[abs(DFFITS)>2*sqrt(p/n)]
-```
-```{r}
-DFBETAS<-dfbetas(model.best.transform.predictors)
-length(DFBETAS[abs(DFBETAS)>2/sqrt(n)])
-#length(DFBETAS)
-nrow(ibm)
-length(model.best.transform.predictors$residuals)
-```
-```{r}
-COOKS<-cooks.distance(model.best.transform.predictors)
-COOKS[COOKS>qf(0.5,p,n-p)]
-```
-
-#### Model Diagnostics
-
-We now check for predictive performance.
-
-```{r}
-length(model.best.transform.predictors$coefficients)
-length(ibm[,1])
-
-```
-```{r}
-model.simple.rstudent     = rstudent(model.simple) 
-n = nrow(ibm)
-p = length(coef(model.simple))
-plot(model.simple.rstudent,main="Externally Studentized Residuals", ylim=c(-4,4))
-abline(h=qt(1-0.05/(2*n), n-p-1), col="red")
-abline(h=-qt(1-0.05/(2*n), n-p-1), col="red")
-model.simple.rstudent[abs(model.simple.rstudent)>qt(1-0.05/(2*n), n-p-1)]
-
-```
-
-```{r}
-lev = lm.influence(model.simple)$hat 
-influence = lev[lev>2*p/n]
-{
-  plot(lev, main="Leverages", ylim=c(-0.8,0.8))
-  abline(h=2*p/n, col="red")
-  identify(lev)
-}
-
-ibm[which(lev>2*p/n),]
-```
-
-```{r}
-ibm.nosimplelev = ibm[-which(lev>2*p/n),]
-```
-
-```{r}
-model.simple.nolev = lm(MonthlyIncome ~ JobLevel, data = ibm.nosimplelev)
-plot(model.simple.nolev)
-```
-
-```{r}
-plot(model.simple)
-```
+## Individual models
 
 ```{r}
 # Create subsets for each job level
@@ -502,153 +270,176 @@ jobLevel5 = subset(ibm, JobLevel == 5)
 ```
 
 ```{r}
-# using exhaustive search for job level 1
-allreg.jobLevel1 <- regsubsets(MonthlyIncome ~., data=jobLevel1, nbest=1, really.big = T)
+# using exhaustive search for each job level
+# reload existing results
+load(file="models by job level - images and object dumps/joblevel_data.R", verbose = TRUE)
+# run again
+#allreg.jobLevel1 = regsubsets(MonthlyIncome ~., data=jobLevel1, nbest=1, really.big = T)
+#allreg.jobLevel2 = regsubsets(MonthlyIncome ~., data=jobLevel2, nbest=1, really.big = T)
+#allreg.jobLevel3 = regsubsets(MonthlyIncome ~., data=jobLevel3, nbest=1, really.big = T)
+#allreg.jobLevel4 = regsubsets(MonthlyIncome ~., data=jobLevel4, nbest=1, really.big = T)
+#allreg.jobLevel5 = regsubsets(MonthlyIncome ~., data=jobLevel5, nbest=1, really.big = T)
 ```
 
 ```{r}
-# showing the outcome of exhaustive search for job level 1
+# fit regression model for best r2 model for job level 1
+cat("=== joblevel1\n")
 pp_allreg(allreg.jobLevel1)
-```
-
-### fit regression model for best r2 model for job level 1
-```{r}
-model.jobLevel1 = lm(MonthlyIncome ~ 1 + Attrition + JobRole + NumCompaniesWorked + PercentSalaryHike + PerformanceRating + TotalWorkingYears + TrainingTimesLastYear + YearsInCurrentRole + YearsSinceLastPromotion, data=jobLevel1)
-```
-
-
-### linear assumptions for job level 1 subset
-```{r}
-summary(model.jobLevel1)
-plot(model.jobLevel1, which=1:2)
-boxcox(model.jobLevel1, lambda = seq(0, 1, by= 0.1))
-```
-
-### using exhaustive search for job level 2
-```{r}
-allreg.jobLevel2 <- regsubsets(MonthlyIncome ~., data=jobLevel2, nbest=1, really.big = T)
-```
-
-### showing the outcome of exhaustive search for job level 2
-```{r}
+cat("=== joblevel2\n")
 pp_allreg(allreg.jobLevel2)
-```
-
-### fit regression model for best r2 model for job level 2
-```{r}
-model.jobLevel2 = lm(MonthlyIncome ~ 1 + BusinessTravel + DailyRate + Education + EducationField + JobInvolvement + JobRole + TotalWorkingYears, data=jobLevel2)
-```
-
-### Linear assumptions for job level 2 subset
-```{r}
-summary(model.jobLevel2)
-plot(model.jobLevel2, which=1:2)
-```
-
-### using exhaustive search for job level 3
-```{r}
-allreg.jobLevel3 <- regsubsets(MonthlyIncome ~., data=jobLevel3, nbest=1, really.big = T)
-```
-
-### showing the outcome of exhaustive search for job level 3
-```{r}
+cat("=== joblevel3\n")
 pp_allreg(allreg.jobLevel3)
-```
-
-### fit regression model for best r2 model for job level 3 subset
-```{r}
-model.jobLevel3 = lm(MonthlyIncome ~ 1 + BusinessTravel + Education + JobRole + NumCompaniesWorked + RelationshipSatisfaction + StockOptionLevel + TotalWorkingYears, data=jobLevel3)
-```
-
-### linear assumptions for job level 3 subset
-```{r}
-summary(model.jobLevel3)
-plot(model.jobLevel3, which=1:2)
-boxcox(model.jobLevel3, lambda = seq(0, 3, by= 0.1))
-```
-
-### box cox transformations
-```{r}
-model.jobLevel3.transform = lm(MonthlyIncome^2 ~ 1 + BusinessTravel + Education + JobRole + NumCompaniesWorked + RelationshipSatisfaction + StockOptionLevel + TotalWorkingYears, data=jobLevel3)
-summary(model.jobLevel3.transform)
-
-plot(model.jobLevel3.transform, which = 1:2)
-qqline(model.jobLevel3.transform$residuals, col="red")
-boxcox(model.jobLevel3.transform)
-```
-
-### Multicollinearity in job level 3 subset
-```{r}
-faraway::vif(model.jobLevel3.transform)
-```
-
-### Outliers Analysis in job level 3 subset
-```{r}
-##residuals
-res = model.jobLevel3.transform$residuals 
-##studentized residuals
-student.res = rstandard(model.jobLevel3.transform) 
-##externally studentized residuals
-ext.student.res = rstudent(model.jobLevel3.transform) 
-
-par(mfrow = c(1,3))
-plot(model.jobLevel3.transform$fitted.values,res,main="Residuals")
-plot(model.jobLevel3.transform$fitted.values,student.res,main="Studentized Residuals")
-plot(model.jobLevel3.transform$fitted.values,ext.student.res,main="Externally  Studentized Residuals")
-
-n = length(jobLevel3$MonthlyIncome)
-p = length(coef(model.jobLevel3.transform))
-
-
-##critical value using Bonferroni procedure
-ext.student.res[abs(omit.na(ext.student.res)) > qt(1-0.05/(2*n), n-p-1)]
-```
-
-
-
-### using exhaustive search for job level 4
-```{r}
-allreg.jobLevel4 <- regsubsets(MonthlyIncome ~., data=jobLevel4, nbest=1, really.big = T)
-```
-
-### showing the outcome of exhaustive search for job level 4
-```{r}
+cat("=== joblevel4\n")
 pp_allreg(allreg.jobLevel4)
-```
-
-### fit regression model for best r2 model for job level 4 subset
-```{r}
-model.jobLevel4 = lm(MonthlyIncome ~ 1 + Education + EnvironmentSatisfaction + JobRole + JobSatisfaction + MaritalStatus + MonthlyRate + PerformanceRating + RelationshipSatisfaction, data=jobLevel4)
-```
-
-### linear assumptions for job level 4 subset
-```{r}
-summary(model.jobLevel4)
-plot(model.jobLevel4, which=1:2)
-boxcox(model.jobLevel4, lambda = seq(0, 3, by= 0.1))
-```
-
-### Multicollinearity in job level 4 subset
-```{r}
-faraway::vif(model.jobLevel4)
-```
-
-### using exhaustive search for job level 5
-```{r}
-allreg.jobLevel5 <- regsubsets(MonthlyIncome ~., data=jobLevel5, nbest=1, really.big = T)
-```
-
-### showing the outcome of exhaustive search for job level 5
-```{r}
+cat("=== joblevel5\n")
 pp_allreg(allreg.jobLevel5)
 ```
 
-### fit regression model for best r2 model for job level 5
+We fit two of the better models:
 ```{r}
-model.jobLevel5 = lm(MonthlyIncome ~ 1 + BusinessTravel + DailyRate + Education + EducationField + EducationField + PercentSalaryHike + RelationshipSatisfaction + StockOptionLevel, data=jobLevel5)
+model.joblevel3 = lm(MonthlyIncome ~ 1 + BusinessTravel + Education + JobRole + NumCompaniesWorked + RelationshipSatisfaction  + StockOptionLevel + TotalWorkingYears, data = jobLevel3)
+model.joblevel4 = lm(MonthlyIncome ~ 1 + Education  + EnvironmentSatisfaction + JobRole + MaritalStatus + MonthlyRate + PerformanceRating + RelationshipSatisfaction, data = jobLevel4)
 ```
 
+
+
+
+## Model adequacy, continued
+
+At this point, we want to assess final adquacy.
+
+QQ plot.
 ```{r}
-summary(model.jobLevel5)
-plot(model.jobLevel5, which=1:2)
+{
+  par(mfrow=c(2,2))
+  qqnorm(model.simple$residuals); title("simple", adj=0.1, line=-1)
+  qqline(model.simple$residuals)
+  
+  qqnorm(model.allreg.transform$residuals); title("allreg.transformed", adj=0.1, line=-1)
+  qqline(model.allreg.transform$residuals)
+  
+  qqnorm(model.joblevel3$residuals); title("joblevel3", adj=0.1, line=-1)
+  qqline(model.joblevel3$residuals)
+  
+  qqnorm(model.joblevel4$residuals); title("joblevel4", adj=0.1, line=-1)
+  qqline(model.joblevel4$residuals)
+}
 ```
+
+Residual plots for the job level models.  These look good.
+```{r}
+{
+  par(mfrow=c(1,2))
+  with(model.joblevel3, plot(residuals ~ fitted.values, main="joblevel3"))
+  abline(h = 0, col="Red")
+  with(model.joblevel4, plot(residuals ~ fitted.values, main="joblevel4"))
+  abline(h = 0, col="Red")
+}
+```
+
+ACFs look fine.
+```{r}
+{
+  par(mfrow=c(2,2))
+  acf(model.simple$residuals)
+  acf(model.allreg.transform$residuals)
+  acf(model.joblevel3$residuals)
+  acf(model.joblevel4$residuals)
+}
+```
+
+
+## Predictive performance
+
+We look at one or two models briefly.
+
+
+
+
+## Final recommendations
+
+We consider the following models:
+
+| name | formula |
+| --- | ---- |
+| model.simple | lm(MonthlyIncome ~  JobLevel, data = ibm) |
+| model.allreg.transformed | lm(MonthlyIncome^0.7 ~  JobLevel + JobRole, data = ibm) |
+| model.joblevel3 | lm(MonthlyIncome ~ BusinessTravel + Education + JobRole + NumCompaniesWorked + RelationshipSatisfaction  + StockOptionLevel + TotalWorkingYears) |
+| model.joblevel4 | lm(MonthlyIncome ~  Education  + EnvironmentSatisfaction + JobRole + MaritalStatus + MonthlyRate + PerformanceRating + RelationshipSatisfaction) |
+
+For the simplest model, we recommend model.simple (not the transformed one), which fits to each job level an average value.  While quick and highly predictive, with an R squared of around 0.93, the model does not meet the constant variance assumption needed for effective use of hypothesis tests.  Furthermore, it is also so simplistic that it groups employees into a few preset groups.  For slightly the best overall fit for the general employee, we recommend using the model.allreg.transformed variant.
+
+However, the different levels of jobs appear to be rather distinctive based on the box-and-whiskers graph of the residuals against the job levels in these models.  For this reason, we investigated looking at models that specialize in particular job levels.  Two of these, model.joblevel3 and model.joblevel4 had decent values of R squared, respectively 0.70 and 0.82.  These also deal with a broader range of predictors and distinguish a larger variety of employee.  The residual plots and qq plots look much better for these models than for the general models.
+
+These models offer some approaches to predicting employee monthly income.  The best method will ultimately depend on the specific goals informing the analysis.
+
+
+## Extra: Stepwise selection
+
+In this section, we consider some alternative models generated from stepwise selection models.  While stepwise selection may report a model with inferior values for our criteria compared to the exhaustive search, the reported model may still provide a better model in terms of linearity assumptions.  For this reason, we do consider a stepwise selection.
+
+### Initial fit and transform
+We use the `step` function with `both` directions.
+```{r echo=FALSE}
+regnull = lm(MonthlyIncome ~  1, data = ibm)
+regfull = lm(MonthlyIncome ~ ., data = ibm)
+model.step = step(regfull, scope=list(lower=regnull, upper=regfull), direction="both", trace = 0)
+formula.model.step = model.step$call$formula
+model.step$call
+```
+
+The diagnostic plots are not that much better.
+```{r}
+{par(mfrow=c(1,3))
+plot(model.step, which = 1); title("(model.step)", line=-1, adj=0.95, cex.main=0.8)
+plot(model.step$residuals ~ ibm$JobLevel)
+boxcox(model.step, lambda = seq(0.5,1, by=0.01))}
+```
+
+With the Box-Cox transform, we get the following:
+
+```{r echo=FALSE}
+model.step.transformed = lm(formula = MonthlyIncome^0.7 ~ Gender + JobInvolvement + JobLevel + 
+    JobRole + NumCompaniesWorked + StockOptionLevel + TotalWorkingYears + 
+    YearsInCurrentRole, data = ibm)
+{par(mfrow=c(1,2))
+plot(model.step.transformed, which = 1); title("(model.step.transformed)", line=-1, adj=0.95, cex.main=0.8)
+plot(model.step.transformed$residuals ~ ibm$JobLevel, main = "Transformed step model")}
+```
+
+### Additional remediation
+We continue our efforts and perform some transforms to the (quantitative) predictors.  These are motivated by a desire to transform the shape of the residuals.  In particular, we use the log and multiplicative inverse transforms on the predictors.  Unfortunately, this does not really help.
+
+```{r include=FALSE}
+# helper function
+transformDoubles = function(df, func) {
+  dbls = sapply(df, is.double)
+  copy = df
+  copy[,dbls] = func(df[,dbls])
+  copy
+}
+```
+```{r echo=FALSE}
+# log transform of predictors (but not response)
+ibm.log = transformDoubles(subset(ibm, select = -MonthlyIncome), function(x) { log(x + 0.01) })
+ibm.log$MonthlyIncome = ibm$MonthlyIncome^.7 #keep box cox transform
+
+# inverse transform predictors and response
+ibm.inv = transformDoubles(ibm, function(x) { 1 / x })
+#   remove bad values (dangerous, and probably doesn't help our variance!)
+ibm.inv = ibm.inv[-which(apply(ibm.inv == Inf,1, function(x) { any(x) })),]
+
+# fit
+model.step.transformed.log = lm(formula = formula.model.step, data = ibm.log)
+model.step.transformed.inv = lm(formula = formula.model.step, data = ibm.inv)
+
+# plot
+{par(mfrow=c(1,2))
+plot(model.step.transformed.log$residuals ~ ibm$JobLevel, main = "Transformed step model")
+plot(model.step.transformed.inv$residuals ~ ibm.inv$JobLevel, main = "Transformed step model")}
+
+```
+
+
+
+
