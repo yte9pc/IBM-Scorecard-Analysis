@@ -1,0 +1,264 @@
+Stuff we dropped from AnalysisIncome.Rmd but which might be worth putting back in.
+
+# Histograms
+
+We also look at the distribution of a couple variables.
+```{r echo=FALSE}
+par(mfrow=c(1,2))
+plot(ibm$Education)
+with(ibm, hist(Age))
+```
+
+
+We also examine the VIFs of the defactored data for general interest.  We perform a formal test when we investigate specific models.
+```{r}
+model.defactored = lm(MonthlyIncome ~ ., data = ibm.defactored)
+model.defactored.vifs = faraway::vif(model.defactored)
+
+# Five highest VIFs with this "defactored" model on Monthly income
+# 
+model.defactored.vifs[order(model.defactored.vifs, decreasing = T)][1:5]
+```
+
+***CORRECT ME.***
+
+The equation would be 
+$$\begin{array}{rcl}
+\text{Monthly_Income} &=& \beta_0 + \beta_1 \times \text{BusinessTravel} + \beta_2 \times \text{EnvironmentSatisfaction} 
+                    \\ && + \beta_3 \times \text{JobInvolvement} + \beta_4 \times \text{JobRole} + \beta_5 \times \text{JobSatisfaction}
+                    \\ && + \beta_6 \times \text{OverTime} + \beta_7 \times \text{StockOptionLevel} + \beta_8 \times \text{TotalWorkingYears}
+\end{array}$$
+
+We start with multicollinearity.  Using the faraway library, we verified that the VIFs are less than 5 for both models.  Given this and the reported results of the t tests, multicollinearity is unlikely to be a large problem with these models.  This makes sense given the small number of predictors.
+```{r echo=FALSE}
+vif(model.allreg)
+```
+
+
+boxcox(model.allreg, lambda = seq(0.5, 1, by= 0.1))
+
+
+qqline(model.allreg.transform$residuals, col="red")
+boxcox(model.allreg.transform)
+
+
+# Additional remediation code
+
+```{r}
+
+plot(model.simple, which = 1)
+boxcox(model.simple, lambda = seq(0.2, .6, by= 0.1))
+
+
+#simple.transform = ibm
+#simple.transform$MonthlyIncome = simple.transform$MonthlyIncome^0.5
+model.simple.transform = lm(sqrt(MonthlyIncome) ~  JobLevel, data = ibm)
+
+
+plot(model.simple.transform, which = 1)
+{qqnorm(model.simple.transform$residuals, col="red")
+qqline(model.simple.transform$residuals, col="red")}
+boxcox(model.simple.transform)
+
+```
+```{r}
+summary(model.allreg.transform)
+summary(model.simple.transform)
+```
+
+
+
+
+
+$$ E(\varepsilon) = 0, \quad \sigma^2 \text{ constant}$$
+
+
+# Stepwise
+```{r}
+regnull = lm(MonthlyIncome ~  1, data = ibm)
+regfull = lm(MonthlyIncome ~ ., data = ibm)
+
+#step(regfull, scope=list(lower=regnull, upper=regfull), direction="backward")
+#step(regfull, scope=list(lower=regnull, upper=regfull), direction="forward")
+step(regfull, scope=list(lower=regnull, upper=regfull), direction="both", trace = 0)
+```
+```{r}
+model.best = lm(MonthlyIncome ~ Gender + JobInvolvement + JobLevel + JobRole + 
+    NumCompaniesWorked + StockOptionLevel + TotalWorkingYears + 
+    YearsInCurrentRole, data = ibm)
+
+plot(model.best, which = 1)
+boxcox(model.best, lambda = seq(0.3, 1.2, 0.1))
+
+#best.transform  = ibm
+#best.transform$MonthlyIncome = best.transform$MonthlyIncome^0.7
+model.best.transform = lm(MonthlyIncome^0.7 ~ Gender + JobInvolvement + JobLevel + JobRole + 
+    NumCompaniesWorked + StockOptionLevel + TotalWorkingYears + 
+    YearsInCurrentRole, data = ibm )
+
+plot(model.best.transform , which = 1)
+boxcox(model.best.transform, lambda = seq(0.3, 1.2, 0.1))
+```
+
+
+
+
+# Transforms
+
+```{r}
+allregMonthlyIncome = ibm$MonthlyIncome^.7
+allreg.transform.predictors = ibm[-c(17)]
+
+## We tried 3 types of transformation to all of non factor predictors (ln, )
+allreg.transform.factor = allreg.transform.predictors[,sapply(allreg.transform.predictors, is.factor)]
+allreg.transform.double = allreg.transform.predictors[,sapply(allreg.transform.predictors, is.double)]
+#allreg.transform.double = lapply(allreg.transform.double, function(x) 1/x)
+#allreg.transform.double = exp(allreg.transform.double + 0.01)
+allreg.transform.double = log(allreg.transform.double + 0.01)
+allreg.transform.predictors = cbind(allreg.transform.factor, allreg.transform.double)
+allreg.transform.predictors$MonthlyIncome = allregMonthlyIncome
+
+# check function
+res = transformDoubles(allreg.transform.predictors, function(x) { log(x + 0.01) })
+res$MonthlyIncome = ibm$MonthlyIncome^.7 # retain original
+#dbls = sapply(allreg.transform.predictors, is.double)
+#res[,names(dbls[dbls])] == allreg.transform.predictors[,names(dbls[dbls])]
+#res[,names(allreg.transform.predictors)] == allreg.transform.predictors[,names(allreg.transform.predictors)]
+```
+
+```{r}
+simpleMonthlyIncome = ibm$MonthlyIncome^.5
+simple.transform.predictors = ibm[-c(17)]
+
+## We tried 3 types of transformation to all of non factor predictors (ln, )
+simple.transform.factor = simple.transform.predictors[,sapply(simple.transform.predictors, is.factor)]
+simple.transform.double = simple.transform.predictors[,sapply(simple.transform.predictors, is.double)]
+#simple.transform.double = lapply(simple.transform.double, function(x) 1/x)
+#simple.transform.double = exp(simple.transform.double + 0.01)
+simple.transform.double = log(simple.transform.double + 0.01)
+simple.transform.predictors = cbind(simple.transform.factor, simple.transform.double)
+simple.transform.predictors$MonthlyIncome = simpleMonthlyIncome
+
+model.simple.transform.predictors = lm(MonthlyIncome ~  JobLevel, data = simple.transform.predictors)
+plot(model.simple.transform.predictors , which = 1)
+boxcox(model.simple.transform.predictors, lambda = seq(0.3, 1.2, 0.1))
+```
+```{r}
+bestMontlyIncome = ibm$MonthlyIncome^.7
+best.transform.predictors = ibm[-c(17)]
+
+## We tried 3 types of transformation to all of non factor predictors 
+best.transform.factor = best.transform.predictors[,sapply(best.transform.predictors, is.factor)]
+best.transform.double = best.transform.predictors[,sapply(best.transform.predictors, is.double)]
+#best.transform.double = lapply(best.transform.double, function(x) 1/x)
+#best.transform.double = exp(best.transform.double + 0.01)
+best.transform.double = log(best.transform.double + 0.01)
+best.transform.predictors = cbind(best.transform.factor, best.transform.double)
+best.transform.predictors$MonthlyIncome = bestMontlyIncome
+
+model.best.transform.predictors = lm(MonthlyIncome ~ Gender + JobInvolvement + JobLevel + 
+    JobRole + NumCompaniesWorked + StockOptionLevel + TotalWorkingYears + 
+    YearsInCurrentRole, data = best.transform.predictors)
+plot(model.best.transform.predictors , which = 1)
+boxcox(model.best.transform.predictors, lambda = seq(0.3, 1.2, 0.1))
+
+# Transform Y since boxcox does not contain 1
+best.transform.predictors$MonthlyIncome = best.transform.predictors$MonthlyIncome^.8
+model.best.transform.predictors = lm(MonthlyIncome ~ Gender + JobInvolvement + JobLevel + 
+    JobRole + NumCompaniesWorked + StockOptionLevel + TotalWorkingYears + 
+    YearsInCurrentRole, data = best.transform.predictors)
+plot(model.best.transform.predictors , which = 1)
+boxcox(model.best.transform.predictors, lambda = seq(0.3, 1.2, 0.1))
+summary(model.best.transform.predictors)
+```
+
+```{r}
+model.allreg.transform.predictors = lm(MonthlyIncome ~  JobLevel + JobRole, data = allreg.transform.predictors)
+plot(model.allreg.transform.predictors , which = 1)
+boxcox(model.allreg.transform.predictors, lambda = seq(0.3, 1.2, 0.1))
+```
+
+# Outliers
+```{r}
+##residuals
+res = model.best.transform.predictors$residuals 
+##studentized residuals
+student.res = rstandard(model.best.transform.predictors) 
+##externally studentized residuals
+ext.student.res = rstudent(model.best.transform.predictors) 
+
+# Bonferonni critical points
+n = length(model.allreg$MonthlyIncome)
+p = length(coef(model.allreg))
+ext.student.res[abs(ext.student.res)>qt(1-0.05/(2*n), n-p-1)]
+
+```
+
+## Bonus: Outliers Analysis
+
+
+```{r}
+ibm[which(lev>2*p/n),]
+```
+```{r}
+plot(ibm$PerformanceRating)
+```
+
+
+```{r}
+DFFITS<-dffits(model.best.transform.predictors)
+DFFITS[abs(DFFITS)>2*sqrt(p/n)]
+```
+```{r}
+DFBETAS<-dfbetas(model.best.transform.predictors)
+length(DFBETAS[abs(DFBETAS)>2/sqrt(n)])
+#length(DFBETAS)
+nrow(ibm)
+length(model.best.transform.predictors$residuals)
+```
+```{r}
+COOKS<-cooks.distance(model.best.transform.predictors)
+COOKS[COOKS>qf(0.5,p,n-p)]
+```
+
+
+```{r}
+length(model.best.transform.predictors$coefficients)
+length(ibm[,1])
+
+```
+```{r}
+model.simple.rstudent     = rstudent(model.simple) 
+n = nrow(ibm)
+p = length(coef(model.simple))
+{plot(model.simple.rstudent,main="Externally Studentized Residuals", ylim=c(-4,4))
+abline(h=qt(1-0.05/(2*n), n-p-1), col="red")
+abline(h=-qt(1-0.05/(2*n), n-p-1), col="red")}
+model.simple.rstudent[abs(model.simple.rstudent)>qt(1-0.05/(2*n), n-p-1)]
+
+```
+
+```{r}
+lev = lm.influence(model.simple)$hat 
+influence = lev[lev>2*p/n]
+{
+  plot(lev, main="Leverages", ylim=c(-0.8,0.8))
+  abline(h=2*p/n, col="red")
+  identify(lev)
+}
+
+ibm[which(lev>2*p/n),]
+```
+
+```{r}
+ibm.nosimplelev = ibm[-which(lev>2*p/n),]
+```
+
+```{r}
+model.simple.nolev = lm(MonthlyIncome ~ JobLevel, data = ibm.nosimplelev)
+plot(model.simple.nolev)
+```
+
+```{r}
+plot(model.simple)
+```
