@@ -511,83 +511,144 @@ allreg.jobLevel1 <- regsubsets(MonthlyIncome ~., data=jobLevel1, nbest=1, really
 pp_allreg(allreg.jobLevel1)
 ```
 
+### fit regression model for best r2 model for job level 1
 ```{r}
-# fit regression model for best r2 model for job level 1
 model.jobLevel1 = lm(MonthlyIncome ~ 1 + Attrition + JobRole + NumCompaniesWorked + PercentSalaryHike + PerformanceRating + TotalWorkingYears + TrainingTimesLastYear + YearsInCurrentRole + YearsSinceLastPromotion, data=jobLevel1)
-
-summary(model.jobLevel1)
-plot(model.jobLevel1, which=1:2)
 ```
 
+
+### linear assumptions for job level 1 subset
 ```{r}
-# using exhaustive search for job level 2
+summary(model.jobLevel1)
+plot(model.jobLevel1, which=1:2)
+boxcox(model.jobLevel1, lambda = seq(0, 1, by= 0.1))
+```
+
+### using exhaustive search for job level 2
+```{r}
 allreg.jobLevel2 <- regsubsets(MonthlyIncome ~., data=jobLevel2, nbest=1, really.big = T)
 ```
 
+### showing the outcome of exhaustive search for job level 2
 ```{r}
-# showing the outcome of exhaustive search for job level 2
 pp_allreg(allreg.jobLevel2)
 ```
 
+### fit regression model for best r2 model for job level 2
 ```{r}
-# fit regression model for best r2 model for job level 2
 model.jobLevel2 = lm(MonthlyIncome ~ 1 + BusinessTravel + DailyRate + Education + EducationField + JobInvolvement + JobRole + TotalWorkingYears, data=jobLevel2)
+```
 
+### Linear assumptions for job level 2 subset
+```{r}
 summary(model.jobLevel2)
 plot(model.jobLevel2, which=1:2)
 ```
 
+### using exhaustive search for job level 3
 ```{r}
-# using exhaustive search for job level 3
 allreg.jobLevel3 <- regsubsets(MonthlyIncome ~., data=jobLevel3, nbest=1, really.big = T)
 ```
 
+### showing the outcome of exhaustive search for job level 3
 ```{r}
-# showing the outcome of exhaustive search for job level 3
 pp_allreg(allreg.jobLevel3)
 ```
 
+### fit regression model for best r2 model for job level 3 subset
 ```{r}
-# fit regression model for best r2 model for job level 3
 model.jobLevel3 = lm(MonthlyIncome ~ 1 + BusinessTravel + Education + JobRole + NumCompaniesWorked + RelationshipSatisfaction + StockOptionLevel + TotalWorkingYears, data=jobLevel3)
+```
 
+### linear assumptions for job level 3 subset
+```{r}
 summary(model.jobLevel3)
 plot(model.jobLevel3, which=1:2)
+boxcox(model.jobLevel3, lambda = seq(0, 3, by= 0.1))
+```
+
+### box cox transformations
+```{r}
+model.jobLevel3.transform = lm(MonthlyIncome^2 ~ 1 + BusinessTravel + Education + JobRole + NumCompaniesWorked + RelationshipSatisfaction + StockOptionLevel + TotalWorkingYears, data=jobLevel3)
+summary(model.jobLevel3.transform)
+
+plot(model.jobLevel3.transform, which = 1:2)
+qqline(model.jobLevel3.transform$residuals, col="red")
+boxcox(model.jobLevel3.transform)
+```
+
+### Multicollinearity in job level 3 subset
+```{r}
+faraway::vif(model.jobLevel3.transform)
+```
+
+### Outliers Analysis in job level 3 subset
+```{r}
+##residuals
+res = model.jobLevel3.transform$residuals 
+##studentized residuals
+student.res = rstandard(model.jobLevel3.transform) 
+##externally studentized residuals
+ext.student.res = rstudent(model.jobLevel3.transform) 
+
+par(mfrow = c(1,3))
+plot(model.jobLevel3.transform$fitted.values,res,main="Residuals")
+plot(model.jobLevel3.transform$fitted.values,student.res,main="Studentized Residuals")
+plot(model.jobLevel3.transform$fitted.values,ext.student.res,main="Externally  Studentized Residuals")
+
+n = length(jobLevel3$MonthlyIncome)
+p = length(coef(model.jobLevel3.transform))
+
+
+##critical value using Bonferroni procedure
+ext.student.res[abs(omit.na(ext.student.res)) > qt(1-0.05/(2*n), n-p-1)]
 ```
 
 
+
+### using exhaustive search for job level 4
 ```{r}
-# using exhaustive search for job level 4
 allreg.jobLevel4 <- regsubsets(MonthlyIncome ~., data=jobLevel4, nbest=1, really.big = T)
 ```
 
+### showing the outcome of exhaustive search for job level 4
 ```{r}
-# showing the outcome of exhaustive search for job level 4
 pp_allreg(allreg.jobLevel4)
 ```
 
+### fit regression model for best r2 model for job level 4 subset
 ```{r}
-# fit regression model for best r2 model for job level 4
 model.jobLevel4 = lm(MonthlyIncome ~ 1 + Education + EnvironmentSatisfaction + JobRole + JobSatisfaction + MaritalStatus + MonthlyRate + PerformanceRating + RelationshipSatisfaction, data=jobLevel4)
-
-summary(model.jobLevel4)
-plot(model.jobLevel4, which=1:2)
 ```
 
-
+### linear assumptions for job level 4 subset
 ```{r}
-# using exhaustive search for job level 5
+summary(model.jobLevel4)
+plot(model.jobLevel4, which=1:2)
+boxcox(model.jobLevel4, lambda = seq(0, 3, by= 0.1))
+```
+
+### Multicollinearity in job level 4 subset
+```{r}
+faraway::vif(model.jobLevel4)
+```
+
+### using exhaustive search for job level 5
+```{r}
 allreg.jobLevel5 <- regsubsets(MonthlyIncome ~., data=jobLevel5, nbest=1, really.big = T)
 ```
 
+### showing the outcome of exhaustive search for job level 5
 ```{r}
-# showing the outcome of exhaustive search for job level 5
 pp_allreg(allreg.jobLevel5)
 ```
-```{r}
-# fit regression model for best r2 model for job level 5
-model.jobLevel5 = lm(MonthlyIncome ~ 1 + BusinessTravel + DailyRate + Education + EducationField + EducationField + PercentSalaryHike + RelationshipSatisfaction + StockOptionLevel, data=jobLevel5)
 
+### fit regression model for best r2 model for job level 5
+```{r}
+model.jobLevel5 = lm(MonthlyIncome ~ 1 + BusinessTravel + DailyRate + Education + EducationField + EducationField + PercentSalaryHike + RelationshipSatisfaction + StockOptionLevel, data=jobLevel5)
+```
+
+```{r}
 summary(model.jobLevel5)
 plot(model.jobLevel5, which=1:2)
 ```
