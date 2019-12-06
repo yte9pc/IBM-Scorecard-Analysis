@@ -202,7 +202,7 @@ We first try to fix these problems with Box-Cox.  We pick transformations using 
 A second round of Box-Cox results in confidence intervals containing 1 for both models.  We also see that the p-value for two indicator variables have high p-values in the allreg model, but the other indicator variables remain viable.
 ```{r echo=FALSE}
 # boxcox transform simple model
-model.simple.transform = lm(log(MonthlyIncome) ~  JobLevel, data = ibm)
+model.simple.transform = lm(sqrt(MonthlyIncome) ~  JobLevel, data = ibm)
 s = summary(model.simple.transform)$coefficients
 cat("\nSimple model ===> predictors with p-value > 0.5")
 res = s[which(s[,4] > 0.05),]
@@ -217,7 +217,7 @@ s[which(s[,4] > 0.05),]
 ```{r include=FALSE}
 # (use this to print out) the box cox results after transformation
 { par(mfrow=c(1,2))
-  boxcox(model.simple.transform, lambda = seq(2.2, 6, by= 0.1)); title("simple model")
+  boxcox(model.simple.transform, lambda = seq(0.5, 1.2, by= 0.1)); title("simple model")
   boxcox(model.allreg.transform, lambda = seq(0.8, 1.2, by= 0.1)); title("allreg model")  }
 ```
 
@@ -228,6 +228,13 @@ More problematically, the constant variance assumption still appears not to be m
 plot(model.simple.transform, which = 1); title("(simple model)", line=-1, adj=0.95, cex.main=0.8)
 plot(model.allreg.transform, which = 1); title("(allreg model)", line=-1, adj=0.95, cex.main=0.8)}
 ```
+
+Summaries.
+```{r}
+summary(model.simple.transform)
+summary(model.allreg.transform)
+```
+
 
 ## Leverage points
 We now turn to leverage points, and we come to an important realization.  When we remove them from the simple model, we drop entire job levels:
@@ -347,13 +354,6 @@ ACFs look fine.
   acf(model.joblevel4$residuals)
 }
 ```
-
-
-## Predictive performance
-
-We look at one or two models briefly.
-
-
 
 
 ## Final recommendations

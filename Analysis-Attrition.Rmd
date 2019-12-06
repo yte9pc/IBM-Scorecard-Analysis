@@ -30,26 +30,26 @@ We load the data using a custom column mapping.  A few considerations apply:
 * A few columns are irrelevant or constant across the data.  We drop these.
 
 ```{r}
+
 # column mappings
 types = cols(
   # continuous variables
   Age = col_double(),              DailyRate = col_double(),  
   DistanceFromHome = col_double(), HourlyRate = col_double(),       
-  JobLevel = col_double(),
+  JobLevel = col_factor(1:5),
   
   # ordered factors we later recode
   #   e.g., JobSatisfaction ranges from 1 - 4 (= 'Low' to 'Very High')
-  Education                = col_factor(levels = 1:5, ordered = F),
-  EnvironmentSatisfaction  = col_factor(1:4, ordered = F),
-  JobInvolvement           = col_factor(1:4, ordered = F),
-  JobSatisfaction          = col_factor(levels = 1:4, ordered = F),
-  PerformanceRating        = col_factor(levels = 1:4, ordered = F),
-  RelationshipSatisfaction = col_factor(levels = 1:4, ordered = F),
-  WorkLifeBalance          = col_factor(levels = 1:4, ordered = F),
+  Education                = col_factor(levels = 1:5),
+  EnvironmentSatisfaction  = col_factor(1:4),
+  JobInvolvement           = col_factor(1:4),
+  JobSatisfaction          = col_factor(levels = 1:4),
+  PerformanceRating        = col_factor(levels = 1:4),
+  RelationshipSatisfaction = col_factor(levels = 1:4),
+  WorkLifeBalance          = col_factor(levels = 1:4),
   
   # other factors
-  BusinessTravel =  col_factor(levels = c('Non-Travel', 'Travel_Rarely', 'Travel_Frequently'), 
-                               ordered = F),
+  BusinessTravel =  col_factor(levels = c('Non-Travel', 'Travel_Rarely', 'Travel_Frequently')),
   Gender = col_factor(),            JobRole = col_factor(),
   MaritalStatus = col_factor(),     EducationField = col_factor(),
   
@@ -149,7 +149,7 @@ summary(ibm)
 
 ## Correlation
 
-We look at columsn for which the correlation is greater than 70 in the defactored data:
+We look at columns for which the correlation is greater than 70 in the defactored data:
 ```{r}
 p = round(cor(ibm.defactored) * 100)
 for(i in 1:nrow(p)) {
@@ -185,114 +185,112 @@ Our first question is
 
 > What factors correlate with attrition?
 
-## Work
-
-### Selecting an initial model
-
-We choose to investigate this using the leaps framework to evaluate possible variables to include.  Given the fairly small data set, we perform an exhaustive search using `regsubsets` from the leaps package.
-
 ```{r}
-# this took about six minutes on one computer tested
-system.time({
-  allreg = regsubsets(Attrition ~ ., ibm, nbest = 1, really.big = T)
-})
+library(MASS)
+null.model <- glm(Attrition ~ 1, family = "binomial", data = ibm)
+full.model <- glm(Attrition ~ ., family = "binomial", data = ibm)
 ```
-
-We now print out the top results for several criteria.
 ```{r}
-pp_allreg(allreg)
+#Forward selection model
+forward_model <- null.model %>% stepAIC(trace = FALSE, direction = "forward")
+summary(forward_model)
+coef(forward_model)
 ```
-
-
-
 ```{r}
-
-##intercept only model
-regnull <- lm(y~1, data=data)
-##model with all predictors
-regfull <- lm(y~., data=data)
-
-##forward selection, backward elimination, and stepwise regression
-step(regnull, scope=list(lower=regnull, upper=regfull), direction="forward")
-step(regfull, scope=list(lower=regnull, upper=regfull), direction="backward")
-step(regnull, scope=list(lower=regnull, upper=regfull), direction="both")
+#Backward elimination model
+backward_model <- full.model %>% stepAIC(trace = FALSE, direction = "backward")
+summary(backward_model)
+coef(backward_model)
+backward_model$anova
 ```
-
-### Initial model evaluation
-
-Since the model with the extreme value for every criterion is the same in the exhautive search, we fit the specified model:
 ```{r}
-model.allreg = glm(Attrition ~ 1 + Age + BusinessTravel + JobRole + JobSatisfaction + NumCompaniesWorked + OverTime + StockOptionLevel, data=ibm, family = "binomial")
-
-library(glmulti)
-glmulti.logistic.out <-
-    glmulti(Attrition ~. , data = ibm,
-            level = 1,               # No interaction considered
-            method = "h",            # Exhaustive approach
-            crit = "aic",            # AIC as criteria
-            confsetsize = 5,         # Keep 5 best models
-            plotty = F, report = F,  # No plot or interim reports
-            fitfunction = "glm",     # glm function
-            family = binomial)       # binomial family for logistic regression
-## Show 5 best models (Use @ instead of $ for an S4 object)
-glmulti.logistic.out@formulas
+#Stepwise regression model using full
+step_model <- full.model %>% stepAIC(trace = FALSE, direction = "both")
+#summary(step_model)
+#coef(step_model)
+step_model$anova
+```
+```{r}
+#Check multicollinearity
+step_doubles <- step_model$model[, sapply(step_model$model, is.double) ]
+faraway::vif(step_doubles)
 ```
 
 ```{r}
-groupedIbm = ibm %>% group_by(NumCompaniesWorked) %>% summarise(yeses = sum(Attrition == "Yes"), n = n())
-groupedIbm$yeses/groupedIbm$n
-prop <- groupedIbm$yeses/groupedIbm$n
-# prop
-
-length(unique(ibm$Age))
-
-plot(groupedIbm$NumCompaniesWorked, log(prop/(1-prop)), ylim=c(-5,5), xlab= "Age", ylab="sample log odds")
-
-# try glm.best
-```
-
-***CORRECT ME.***
-
-The equation would be 
-$$\begin{array}{rcl}
-\text{Monthly_Income} &=& \beta_0 + \beta_1 \times \text{BusinessTravel} + \beta_2 \times \text{EnvironmentSatisfaction} 
-                    \\ && + \beta_3 \times \text{JobInvolvement} + \beta_4 \times \text{JobRole} + \beta_5 \times \text{JobSatisfaction}
-                    \\ && + \beta_6 \times \text{OverTime} + \beta_7 \times \text{StockOptionLevel} + \beta_8 \times \text{TotalWorkingYears}
-\end{array}$$
-
-#### Basic features
-
-```{r}
-summary(model.allreg)
+#Stepwise regression model with BIC
+bic_model <- full.model %>% stepAIC(trace = FALSE, direction = "both", k = log(nrow(ibm)) )
+#summary(step_model)
+#coef(step_model)
+bic_model$anova
 ```
 
 ```{r}
-model.joblevel = lm(MonthlyIncome ~ JobLevel, data = ibm)
-summary(model.joblevel)
+#Check multicollinearity
+bic_doubles <- bic_model$model[, sapply(bic_model$model, is.double) ]
+faraway::vif(bic_doubles)
 ```
-
-
-#### Multicollinearity
-
-We first check for multicollinearity:
-
-```{r}
-faraway::vif(model.allreg)
-```
-
-
-#### Linear assumptions
-
-#### Model Diagnostics
-
-We now check for predictive performance.
-
-
 
 
 ```{r}
-cor(ibm.defactored)
+set.seed(199)
 
+##split data into two equal parts
+sample<-sample.int(nrow(ibm), floor(.50*nrow(ibm)), replace = F)
+train<-ibm[sample, ]
+test<-ibm[-sample, ]
+
+##fit model using training data
+aic_train<-glm(Attrition ~ Age + BusinessTravel + DailyRate + DistanceFromHome + 
+    EducationField + EnvironmentSatisfaction + Gender + JobInvolvement + 
+    JobLevel + JobRole + JobSatisfaction + NumCompaniesWorked + 
+    OverTime + RelationshipSatisfaction + StockOptionLevel + 
+    TotalWorkingYears + TrainingTimesLastYear + WorkLifeBalance + 
+    YearsAtCompany + YearsInCurrentRole + YearsSinceLastPromotion + 
+    YearsWithCurrManager, family="binomial", data=train)
+
+bic_train<-glm(Attrition ~ Age + BusinessTravel + Department + DistanceFromHome + 
+    EnvironmentSatisfaction + JobInvolvement + JobLevel + JobSatisfaction + 
+    NumCompaniesWorked + OverTime + StockOptionLevel + YearsInCurrentRole + 
+    YearsSinceLastPromotion, family="binomial", data=train)
+
+library(ROCR)
+##predicted attrition rate for testing data based on training data
+aic_preds<-predict(aic_train,newdata=test, type="response")
+aic_preds
+
+bic_preds<-predict(bic_train,newdata=test, type="response")
+bic_preds
+
+##produce the numbers associated with classification table
+aic_rates<-prediction(aic_preds, test$Attrition)
+aic_rates
+
+bic_rates<-prediction(bic_preds, test$Attrition)
+bic_rates
+
+##store the true positive and false postive rates
+aic_roc<-performance(aic_rates,measure="tpr", x.measure="fpr")
+bic_roc<-performance(bic_rates,measure="tpr", x.measure="fpr")
+##plot ROC curve and overlay the diagonal line for random guessing
+plot(aic_roc, main="ROC Curve", col = "red")
+plot(bic_roc, add = TRUE, col = "blue")
+lines(x = c(0,1), y = c(0,1), col="black")
+legend(0, 1, legend=c("AIC Step Model", "BIC Step Model"),
+       col=c("red", "blue"), lty=1:2, cex=0.5)
 ```
+```{r}
+##compute the AUC
+aic_auc<-performance(aic_rates, measure = "auc")
+aic_auc
 
+bic_auc<-performance(bic_rates, measure = "auc")
+bic_auc
+```
+```{r}
+##confusion matrix. Actual values in the rows, predicted classification in cols
+table(test$Attrition, aic_preds>0.5)
+table(test$Attrition, bic_preds>0.5)
 
+hist(aic_preds)
+hist(bic_preds) 
+```

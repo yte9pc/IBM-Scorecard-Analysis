@@ -20,7 +20,7 @@ pp_allreg = function(allreg) {
   }
 
 
-  criteria = c("r2", "adjr2") #, "mse", "cp", "bic")
+  criteria = c("r2", "adjr2", "mse", "cp", "bic")
   desc =      c(T,    T,       F,     F,     F)
 
   best_rownames = rownames(best)
